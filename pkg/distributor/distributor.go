@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -433,8 +434,14 @@ func (d *Distributor) validateSeries(ts ingester_client.PreallocTimeseries, user
 		nil
 }
 
+var pushLimiter = make(chan bool, runtime.NumCPU())
+
 // Push implements client.IngesterServer
 func (d *Distributor) Push(ctx context.Context, req *ingester_client.WriteRequest) (*ingester_client.WriteResponse, error) {
+	pushLimiter <- true
+	defer func() {
+		<-pushLimiter
+	}()
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, err
